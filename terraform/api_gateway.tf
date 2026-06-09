@@ -4,6 +4,14 @@ resource "aws_api_gateway_rest_api" "api" {
   binary_media_types = ["multipart/form-data"]
 }
 
+resource "aws_api_gateway_authorizer" "cognito" {
+  name            = "datapipe-cognito"
+  rest_api_id     = aws_api_gateway_rest_api.api.id
+  type            = "COGNITO_USER_POOLS"
+  identity_source = "method.request.header.Authorization"
+  provider_arns   = [aws_cognito_user_pool.main.arn]
+}
+
 # /jobs
 resource "aws_api_gateway_resource" "jobs" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -37,7 +45,8 @@ resource "aws_api_gateway_method" "get_jobs" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.jobs.id
   http_method   = "GET"
-  authorization = "NONE"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "get_jobs" {
@@ -62,7 +71,8 @@ resource "aws_api_gateway_method" "post_upload" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.jobs_upload.id
   http_method   = "POST"
-  authorization = "NONE"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "post_upload" {
@@ -89,7 +99,8 @@ resource "aws_api_gateway_method" "get_job" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.jobs_job_id.id
   http_method   = "GET"
-  authorization = "NONE"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "get_job" {
@@ -114,7 +125,8 @@ resource "aws_api_gateway_method" "get_rows" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.jobs_job_id_rows.id
   http_method   = "GET"
-  authorization = "NONE"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
 }
 
 resource "aws_api_gateway_integration" "get_rows" {

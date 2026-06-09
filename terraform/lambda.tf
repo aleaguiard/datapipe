@@ -8,6 +8,7 @@ locals {
     PROCESSING_QUEUE_URL  = aws_sqs_queue.processing.url
     ALLOWED_ORIGIN        = var.allowed_origin
     ENDPOINT_OVERRIDE     = var.localstack_endpoint
+    USER_POOL_ID          = var.localstack_endpoint == "" ? aws_cognito_user_pool.main.id : ""
   }
 
   handlers = {

@@ -17,3 +17,13 @@ output "cloudfront_url" {
   description = "CloudFront distribution domain (HTTPS frontend URL)"
   value       = length(aws_cloudfront_distribution.frontend) > 0 ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : null
 }
+
+output "cognito_hosted_ui_url" {
+  description = "Cognito Hosted UI login URL"
+  value       = var.localstack_endpoint == "" ? "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.region}.amazoncognito.com" : null
+}
+
+output "cognito_client_id" {
+  description = "Cognito App Client ID for the frontend"
+  value       = var.localstack_endpoint == "" ? aws_cognito_user_pool_client.frontend.id : null
+}
