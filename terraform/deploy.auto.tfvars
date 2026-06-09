@@ -1,0 +1,6 @@
+region         = "eu-west-1"
+environment    = "prod"
+owner          = "ale-aguiar"
+allowed_origin = "https://d150vo3uww2ul3.cloudfront.net"
+alarm_email    = ""
+budget_amount  = "20"
