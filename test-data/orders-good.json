@@ -1,0 +1,7 @@
+[
+  { "orderId": "ORD-001", "productName": "Laptop Pro 15", "quantity": 2, "price": 1299.99 },
+  { "orderId": "ORD-002", "productName": "Wireless Mouse", "quantity": 10, "price": 29.95 },
+  { "orderId": "ORD-003", "productName": "USB-C Hub", "quantity": 5, "price": 49.00 },
+  { "orderId": "ORD-004", "productName": "Monitor 27\"", "quantity": 1, "price": 449.00 },
+  { "orderId": "ORD-005", "productName": "Mechanical Keyboard", "quantity": 3, "price": 89.99 }
+]

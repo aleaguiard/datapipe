@@ -1,0 +1,5 @@
+[
+  { "productName": "Laptop Pro 15", "quantity": "many", "price": "expensive" },
+  { "orderId": "", "quantity": "none", "price": "ask" },
+  { "quantity": "zero", "price": "free" }
+]

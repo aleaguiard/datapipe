@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Datapipe</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231a1a2e'/><rect x='4' y='13' width='7' height='6' rx='1' fill='%23fff'/><rect x='13' y='13' width='6' height='6' rx='1' fill='%234ade80'/><rect x='21' y='13' width='7' height='6' rx='1' fill='%23fff'/><rect x='11' y='15' width='2' height='2' fill='%234ade80'/><rect x='19' y='15' width='2' height='2' fill='%234ade80'/></svg>">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+    header { background: #1a1a2e; color: #fff; padding: 1rem 2rem; }
+    header h1 { font-size: 1.4rem; font-weight: 600; }
+    main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: #fff; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #444; text-transform: uppercase; letter-spacing: .05em; }
+    label { display: block; font-size: .875rem; margin-bottom: .25rem; color: #555; }
+    input[type="file"], select { width: 100%; padding: .5rem; border: 1px solid #ddd; border-radius: 4px; font-size: .9rem; margin-bottom: 1rem; }
+    button { background: #1a1a2e; color: #fff; border: none; padding: .6rem 1.4rem; border-radius: 4px; cursor: pointer; font-size: .9rem; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    #upload-result { margin-top: 1rem; font-size: .875rem; }
+    .success { color: #16a34a; }
+    .error { color: #dc2626; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th { text-align: left; padding: .6rem .75rem; border-bottom: 2px solid #eee; color: #666; font-weight: 600; }
+    td { padding: .6rem .75rem; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    .badge { display: inline-block; padding: .2rem .6rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+    .badge-PENDING { background: #fef3c7; color: #92400e; }
+    .badge-PROCESSING { background: #dbeafe; color: #1e40af; }
+    .badge-COMPLETED { background: #dcfce7; color: #166534; }
+    .badge-PARTIAL_FAILURE { background: #ffedd5; color: #9a3412; }
+    .badge-FAILED { background: #fee2e2; color: #991b1b; }
+    #refresh-btn { float: right; background: #f0f0f0; color: #333; font-size: .8rem; padding: .4rem .8rem; }
+    .job-id { font-family: monospace; font-size: .75rem; cursor: pointer; color: #555; border-bottom: 1px dashed #ccc; position: relative; }
+    .job-id:hover { color: #1a1a2e; }
+    .job-id .tooltip { display: none; position: absolute; left: 0; top: 120%; background: #1a1a2e; color: #fff; padding: .2rem .5rem; border-radius: 4px; font-size: .7rem; white-space: nowrap; z-index: 10; }
+    .job-id:hover .tooltip { display: block; }
+    .errors-btn { background: #fee2e2; color: #991b1b; font-size: .75rem; padding: .2rem .6rem; border-radius: 4px; cursor: pointer; border: none; }
+    .errors-row td { background: #fff8f8; padding: 0; }
+    .errors-inner { padding: .75rem 1rem; border-top: 1px solid #fecaca; }
+    .errors-inner table { font-size: .8rem; }
+    .errors-inner th { color: #991b1b; font-size: .75rem; }
+    .errors-inner td { border-bottom: 1px solid #fef2f2; color: #555; }
+    .err-msg { color: #dc2626; }
+    #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; padding: .75rem 1.25rem; border-radius: 6px; font-size: .875rem; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 100; }
+    #toast.show { opacity: 1; }
+    #toast.toast-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    #toast.toast-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+  </style>
+</head>
+<body>
+  <header><h1>Datapipe</h1></header>
+  <main>
+    <div class="card">
+      <h2>Upload File</h2>
+      <label for="schema-select">Schema Type</label>
+      <select id="schema-select">
+        <option value="users">Users (name, email, age?)</option>
+        <option value="orders">Orders (orderId, productName, quantity, price)</option>
+        <option value="contacts">Contacts (firstName, lastName, email, phone?)</option>
+      </select>
+      <label for="file-input">CSV or JSON File</label>
+      <input type="file" id="file-input" accept=".csv,.json" />
+      <button id="upload-btn" onclick="uploadFile()">Upload</button>
+    </div>
+    <div class="card">
+      <h2>Jobs <button id="refresh-btn" onclick="loadJobs()">Refresh</button></h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Job ID</th>
+            <th>File</th>
+            <th>Schema</th>
+            <th>Status</th>
+            <th>Rows</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="jobs-tbody">
+          <tr><td colspan="7" style="text-align:center;color:#999;padding:2rem">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+  <div id="toast"></div>
+  <script src="config.js" onerror="void 0"></script>
+  <script src="app.js"></script>
+</body>
+</html>
