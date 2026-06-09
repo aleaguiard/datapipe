@@ -10,6 +10,7 @@ resource "aws_budgets_budget" "monthly" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
+    subscriber_sns_topic_arns  = [aws_sns_topic.alarms.arn]
     subscriber_email_addresses = var.alarm_email != "" ? [var.alarm_email] : []
   }
 
@@ -18,6 +19,7 @@ resource "aws_budgets_budget" "monthly" {
     threshold                  = 100
     threshold_type             = "PERCENTAGE"
     notification_type          = "FORECASTED"
+    subscriber_sns_topic_arns  = [aws_sns_topic.alarms.arn]
     subscriber_email_addresses = var.alarm_email != "" ? [var.alarm_email] : []
   }
 }
