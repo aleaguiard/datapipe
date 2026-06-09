@@ -18,6 +18,7 @@ export async function handler(
       KeyConditionExpression: 'userId = :uid',
       ExpressionAttributeValues: { ':uid': userId },
       ScanIndexForward: false,
+      Limit: 50,
     }),
   );
 

@@ -7,6 +7,7 @@ import { APIGatewayProxyEvent } from 'aws-lambda';
 function buildGetEvent(
   path: string,
   pathParameters: Record<string, string> | null,
+  userId?: string,
 ): APIGatewayProxyEvent {
   return {
     httpMethod: 'GET',
@@ -17,7 +18,9 @@ function buildGetEvent(
     multiValueQueryStringParameters: null,
     pathParameters,
     stageVariables: null,
-    requestContext: {} as never,
+    requestContext: userId
+      ? ({ authorizer: { claims: { sub: userId } } } as never)
+      : ({} as never),
     resource: '',
     body: null,
     isBase64Encoded: false,
@@ -56,7 +59,7 @@ describe('listJobs handler', () => {
     const csv = Buffer.from('name,email\nListAlice,list-alice@example.com');
     await uploadHandler(buildMultipartEvent(csv, 'list-test-1.csv', 'users'));
 
-    const result = await listJobsHandler(buildGetEvent('/jobs', null));
+    const result = await listJobsHandler(buildGetEvent('/jobs', null, 'test-user-id'));
 
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
