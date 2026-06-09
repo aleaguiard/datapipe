@@ -1,0 +1,68 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build & deploy to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region:            eu-west-1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Lambda bundles
+        run: npm run build
+
+      - name: Terraform init
+        run: terraform -chdir=terraform init
+
+      - name: Terraform apply
+        run: terraform -chdir=terraform apply -auto-approve
+
+      - name: Write frontend config
+        run: |
+          API_URL=$(terraform -chdir=terraform output -raw api_url)
+          COGNITO_URL=$(terraform -chdir=terraform output -raw cognito_hosted_ui_url 2>/dev/null || echo '')
+          CLIENT_ID=$(terraform -chdir=terraform output -raw cognito_client_id 2>/dev/null || echo '')
+          CF_URL=$(terraform -chdir=terraform output -raw cloudfront_url 2>/dev/null || echo '')
+          {
+            echo "window.DATAPIPE_API_URL = '${API_URL}';"
+            echo "window.COGNITO_DOMAIN = '${COGNITO_URL}';"
+            echo "window.COGNITO_CLIENT_ID = '${CLIENT_ID}';"
+            echo "window.COGNITO_REDIRECT_URI = '${CF_URL}';"
+          } > frontend/config.js
+
+      - name: Upload frontend to S3
+        run: |
+          BUCKET=$(terraform -chdir=terraform output -raw frontend_bucket)
+          aws s3 sync frontend/ s3://${BUCKET}/ --exclude "*.example.js"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          CF_ID=$(terraform -chdir=terraform output -raw cloudfront_distribution_id 2>/dev/null || echo '')
+          if [ -n "${CF_ID}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${CF_ID}" --paths "/*"
+          fi

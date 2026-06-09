@@ -35,6 +35,21 @@ Browser → API Gateway → UploadFunction → S3 + DynamoDB + SQS
 - **Smart polling** — frontend polls only active jobs, stops on terminal state
 - **CORS** — per-origin allowlist, no wildcard `*`
 
+## Architectural Decision
+
+**Why serverless (Lambda + SQS + DynamoDB)?**
+
+The core challenge is reliable bulk async processing — files can have thousands of rows, processing may fail per-row, and uploads must respond instantly. A serverless event-driven stack is the natural fit:
+
+- **Decoupled upload and processing:** Upload Lambda responds in <1s regardless of file size. SQS carries the work to the Processor Lambda asynchronously — no HTTP timeout risk.
+- **Lambda over ECS/EC2:** No idle cost, automatic scaling, zero ops. For batch workloads that run on-demand, serverless is cheaper and simpler than maintaining always-on containers.
+- **DynamoDB over RDS:** Schema-free rows (each import may have different fields), single-digit millisecond reads for status polling, and pay-per-request billing that costs nothing when idle.
+- **SQS over SNS/EventBridge:** Built-in retry with visibility timeout, dead letter queue after 3 failures, and exactly-once processing with conditional writes on the consumer side.
+- **Terraform over SAM/CDK:** Gives full control over every resource (API GW binary types, DynamoDB GSI, CloudFront) without framework abstractions hiding behaviour.
+- **CloudFront over direct S3:** HTTPS on the frontend with zero extra infrastructure. Price class 100 covers EU + NA edge locations — sufficient for the course audience.
+
+Trade-offs accepted: API Gateway's 10 MB payload limit caps file size (pre-signed URL upload would remove this); shared `studentLambdaExecutionRole` is broader than least-privilege per-function IAM; no custom domain (would require ACM + Route 53).
+
 ## Schemas
 
 | Schema     | Required fields                              | Optional      |
@@ -180,6 +195,22 @@ aws s3 sync frontend/ s3://datapipe-frontend-<account-id>/
 Requires AWS credentials with Lambda, DynamoDB, SQS, S3, API Gateway, and CloudFront permissions.  
 Uses a pre-existing `studentLambdaExecutionRole` IAM role — no `iam:CreateRole` needed.
 
+## Cost Estimate
+
+For ~10,000 file uploads/month averaging 1,000 rows each:
+
+| Service | Cost/month |
+|---------|------------|
+| Lambda (upload + processor invocations) | ~$2.50 |
+| DynamoDB (10M writes + reads, PAY_PER_REQUEST) | ~$3.00 |
+| SQS (10,000 messages) | ~$0.01 |
+| S3 (10 GB storage + requests) | ~$0.30 |
+| API Gateway (50,000 requests) | ~$0.18 |
+| CloudFront (10 GB transfer, PriceClass_100) | ~$0.90 |
+| **Total** | **~$7/month** |
+
+Zero cost when idle — all services use pay-per-request billing.
+
 ## Git Workflow
 
 - `main` — production, merged via PR from `dev` only
@@ -195,3 +226,23 @@ GitHub Actions runs on every PR targeting `dev` or `main`:
 2. `npm run typecheck`
 3. `npm run test:unit`
 4. `npm run test:integration` — spins up LocalStack v3 as a service container
+
+Required GitHub Secrets (Settings → Secrets and variables → Actions):
+- `AWS_ACCESS_KEY_ID` — from `aws configure export-credentials`
+- `AWS_SECRET_ACCESS_KEY` — from `aws configure export-credentials`
+- `AWS_SESSION_TOKEN` — from `aws configure export-credentials` (rotates with SSO session)
+
+## Destroy
+
+To tear down all AWS infrastructure:
+
+```bash
+eval "$(aws configure export-credentials --format env)"
+terraform -chdir=terraform destroy -auto-approve
+```
+
+This removes all Lambda functions, DynamoDB tables, SQS queues, S3 buckets (including uploaded files), API Gateway, and CloudFront distribution. The tfstate S3 bucket is NOT removed (it's managed outside Terraform). Delete it manually if needed:
+
+```bash
+aws s3 rb s3://datapipe-tfstate-799395849303 --force
+```

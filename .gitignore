@@ -20,6 +20,7 @@ frontend/config.js
 
 # terraform
 terraform/*.tfvars
+!terraform/deploy.auto.tfvars
 terraform/.terraform/
 terraform/.terraform.lock.hcl
 terraform/terraform.tfstate

@@ -12,5 +12,29 @@ variable "localstack_endpoint" {
 variable "allowed_origin" {
   type        = string
   default     = ""
-  description = "Frontend origin allowed for CORS (e.g. https://my-bucket.s3-website-eu-west-1.amazonaws.com)"
+  description = "Frontend origin allowed for CORS"
+}
+
+variable "environment" {
+  type        = string
+  default     = "prod"
+  description = "prod | local"
+}
+
+variable "owner" {
+  type        = string
+  default     = "ale-aguiar"
+  description = "Owner tag value applied to all resources"
+}
+
+variable "alarm_email" {
+  type        = string
+  default     = ""
+  description = "Email address for CloudWatch alarm notifications"
+}
+
+variable "budget_amount" {
+  type        = string
+  default     = "20"
+  description = "Monthly budget threshold in USD"
 }

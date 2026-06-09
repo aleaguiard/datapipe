@@ -7,6 +7,27 @@ resource "aws_dynamodb_table" "jobs" {
     name = "pk"
     type = "S"
   }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "createdAt"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "userId-index"
+    hash_key        = "userId"
+    range_key       = "createdAt"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
 }
 
 resource "aws_dynamodb_table" "rows" {
@@ -34,5 +55,9 @@ resource "aws_dynamodb_table" "rows" {
     hash_key        = "jobId"
     range_key       = "rowIndex"
     projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
   }
 }

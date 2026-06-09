@@ -17,6 +17,7 @@ provider "aws" {
   dynamic "endpoints" {
     for_each = var.localstack_endpoint != "" ? [1] : []
     content {
+      cognitoidp = var.localstack_endpoint
       dynamodb   = var.localstack_endpoint
       s3         = var.localstack_endpoint
       sqs        = var.localstack_endpoint
@@ -31,4 +32,12 @@ provider "aws" {
   skip_credentials_validation = var.localstack_endpoint != ""
   skip_metadata_api_check     = var.localstack_endpoint != ""
   skip_requesting_account_id  = var.localstack_endpoint != ""
+
+  default_tags {
+    tags = {
+      Project     = "datapipe"
+      Environment = var.environment
+      Owner       = var.owner
+    }
+  }
 }

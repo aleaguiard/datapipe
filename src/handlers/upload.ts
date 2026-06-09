@@ -68,6 +68,8 @@ export async function handler(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   const origin = event.headers?.origin ?? event.headers?.Origin;
+  const userId: string =
+    (event.requestContext as any)?.authorizer?.claims?.sub ?? 'anonymous';
   let parsed: { file: Buffer; filename: string; schemaType: string };
 
   try {
@@ -113,6 +115,7 @@ export async function handler(
               TableName: JOBS_TABLE,
               Item: {
                 pk: jobId,
+                userId,
                 etag,
                 status: 'PENDING',
                 schemaType: schemaType as SchemaType,

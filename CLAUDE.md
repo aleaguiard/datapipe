@@ -26,7 +26,9 @@
 - Upload frontend: `aws s3 sync frontend/ s3://datapipe-frontend-<account-id>/`
 
 ## Terraform Conventions
-- tfvars files are gitignored — copy from `*.tfvars.example`
+- Most tfvars files are gitignored — copy from `*.tfvars.example`
 - `local.tfvars` → Floci local dev
-- `prod.tfvars` → real AWS
-- Never commit `terraform.tfstate` or `.tfvars` files
+- `prod.tfvars` → real AWS (gitignored, may contain email/secrets)
+- `deploy.auto.tfvars` → committed CI defaults (no secrets, alarm_email="")
+- Never commit `terraform.tfstate` or `terraform.tfstate.backup`
+- Terraform state lives in S3 backend: `datapipe-tfstate-799395849303`
