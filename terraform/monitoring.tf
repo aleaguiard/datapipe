@@ -43,6 +43,7 @@ resource "aws_cloudwatch_metric_alarm" "processor_errors" {
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
 
   dimensions = {
     FunctionName = aws_lambda_function.processor.function_name
@@ -62,6 +63,7 @@ resource "aws_cloudwatch_metric_alarm" "upload_errors" {
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
 
   dimensions = {
     FunctionName = aws_lambda_function.upload.function_name
