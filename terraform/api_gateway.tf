@@ -189,7 +189,7 @@ resource "aws_api_gateway_integration_response" "options_jobs" {
   http_method = aws_api_gateway_method.options_jobs.http_method
   status_code = aws_api_gateway_method_response.options_jobs.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${var.allowed_origin}'"
   }
@@ -229,7 +229,7 @@ resource "aws_api_gateway_integration_response" "options_upload" {
   http_method = aws_api_gateway_method.options_upload.http_method
   status_code = aws_api_gateway_method_response.options_upload.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
     "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${var.allowed_origin}'"
   }
@@ -269,7 +269,7 @@ resource "aws_api_gateway_integration_response" "options_job_id" {
   http_method = aws_api_gateway_method.options_job_id.http_method
   status_code = aws_api_gateway_method_response.options_job_id.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${var.allowed_origin}'"
   }
@@ -309,7 +309,7 @@ resource "aws_api_gateway_integration_response" "options_job_rows" {
   http_method = aws_api_gateway_method.options_job_rows.http_method
   status_code = aws_api_gateway_method_response.options_job_rows.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'${var.allowed_origin}'"
   }
@@ -322,6 +322,7 @@ resource "aws_api_gateway_deployment" "api" {
 
   triggers = {
     redeployment = sha1(jsonencode([
+      aws_api_gateway_authorizer.cognito,
       aws_api_gateway_integration.get_jobs,
       aws_api_gateway_integration.post_upload,
       aws_api_gateway_integration.get_job,

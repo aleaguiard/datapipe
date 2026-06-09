@@ -17,6 +17,7 @@ provider "aws" {
   dynamic "endpoints" {
     for_each = var.localstack_endpoint != "" ? [1] : []
     content {
+      cognitoidp = var.localstack_endpoint
       dynamodb   = var.localstack_endpoint
       s3         = var.localstack_endpoint
       sqs        = var.localstack_endpoint
