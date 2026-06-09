@@ -195,6 +195,101 @@ aws s3 sync frontend/ s3://datapipe-frontend-<account-id>/
 Requires AWS credentials with Lambda, DynamoDB, SQS, S3, API Gateway, and CloudFront permissions.  
 Uses a pre-existing `studentLambdaExecutionRole` IAM role — no `iam:CreateRole` needed.
 
+## Proof of Fault Tolerance
+
+### Validation failures (partial errors)
+
+Upload a file with some invalid rows — the processor marks each invalid row with its error reason and continues processing the rest normally.
+
+Using `test-data/users-partial.csv` (mix of valid and invalid rows):
+
+```
+POST /jobs/upload → 200 { "jobId": "...", "status": "PENDING" }
+GET  /jobs/{jobId} → 200 {
+  "status": "PARTIAL_FAILURE",
+  "totalRows": 10,
+  "processedRows": 7,
+  "failedRows": 3
+}
+GET  /jobs/{jobId}/rows?failed=true → 200 {
+  "rows": [
+    { "rowIndex": 2, "valid": false, "errors": ["email: invalid format"] },
+    { "rowIndex": 5, "valid": false, "errors": ["email: required"] },
+    { "rowIndex": 8, "valid": false, "errors": ["name: required", "email: required"] }
+  ]
+}
+```
+
+Valid rows are persisted normally. Failed rows are stored with their error reasons. Job status reflects the split: `PARTIAL_FAILURE`.
+
+### System-level failure → DLQ → alarm
+
+To trigger a system failure (not a validation failure), inject a malformed message directly into SQS:
+
+```bash
+QUEUE_URL=$(aws sqs get-queue-url --queue-name datapipe-processing \
+  --region eu-west-1 --query QueueUrl --output text)
+
+aws sqs send-message \
+  --queue-url "$QUEUE_URL" \
+  --message-body '{"jobId":"test","s3Key":"noexiste.csv","schemaType":"users","etag":"abc"}' \
+  --region eu-west-1
+```
+
+**What happens:**
+1. Processor Lambda invoked → `GetObject("noexiste.csv")` → `AccessDenied` (S3 masks NoSuchKey as 403) → message returned via `batchItemFailures`
+2. SQS retries 3 times (visibility timeout 300 s between each)
+3. After 3 failures → message moved to Dead Letter Queue
+4. CloudWatch detects `ApproximateNumberOfMessagesVisible > 0` on DLQ → alarm `datapipe-dlq-messages` transitions to `ALARM`
+5. SNS publishes to `datapipe-alarms` topic → email delivered to subscribed address
+
+Lambda logs (CloudWatch `/aws/lambda/datapipe-processor`) show the three failure attempts, each with the message ID and error:
+
+```
+ERROR Failed to process message <id>: AccessDenied: s3:ListBucket not authorized
+ERROR Failed to process message <id>: AccessDenied: s3:ListBucket not authorized
+ERROR Failed to process message <id>: AccessDenied: s3:ListBucket not authorized
+```
+
+To confirm message in DLQ:
+
+```bash
+DLQ_URL=$(aws sqs get-queue-url --queue-name datapipe-processing-dlq \
+  --region eu-west-1 --query QueueUrl --output text)
+
+aws sqs receive-message --queue-url "$DLQ_URL" \
+  --attribute-names ApproximateReceiveCount --region eu-west-1
+# → ApproximateReceiveCount: "4" (3 retries + 1 DLQ receive)
+```
+
+---
+
+## Proof of Idempotency
+
+Uploading the same file to the same schema twice returns HTTP 409 on the second attempt. The deduplication key is `etag#{userId}#{md5(file)}#{schemaType}` stored atomically in DynamoDB alongside the job record.
+
+**Same file, same schema → rejected:**
+
+```
+POST /jobs/upload (file: users.csv, schema: users) → 200 { "jobId": "abc-123" }
+POST /jobs/upload (file: users.csv, schema: users) → 409 { "error": "Duplicate file" }
+```
+
+No duplicate job is created. No duplicate rows are written.
+
+**Same file, different schema → accepted:**
+
+```
+POST /jobs/upload (file: data.csv, schema: users)    → 200 { "jobId": "abc-123" }
+POST /jobs/upload (file: data.csv, schema: contacts) → 200 { "jobId": "def-456" }
+```
+
+The deduplication is scoped to `(user, file content, schema)` — not just file content — so the same bytes can be imported under different schemas.
+
+**Row-level idempotency:** the Processor uses `ConditionExpression: attribute_not_exists(pk)` on every DynamoDB row write. Reprocessing the same SQS message (e.g. after a Lambda timeout) will not duplicate rows — duplicate writes are silently ignored.
+
+---
+
 ## Cost Estimate
 
 For ~10,000 file uploads/month averaging 1,000 rows each:
