@@ -15,6 +15,7 @@ export function buildMultipartEvent(
   fileBuffer: Buffer,
   filename: string,
   schemaType: string,
+  userId = 'test-user-id',
 ): APIGatewayProxyEvent {
   const boundary = '----TestBoundary';
   const CRLF = '\r\n';
@@ -44,7 +45,9 @@ export function buildMultipartEvent(
     multiValueQueryStringParameters: null,
     pathParameters: null,
     stageVariables: null,
-    requestContext: {} as never,
+    requestContext: {
+      authorizer: { claims: { sub: userId } },
+    } as never,
     resource: '',
     body: body.toString('base64'),
     isBase64Encoded: true,

@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamo, httpHeaders } from '../lib/aws-clients';
 
 const JOBS_TABLE = process.env.JOBS_TABLE!;
@@ -7,22 +7,23 @@ const JOBS_TABLE = process.env.JOBS_TABLE!;
 export async function handler(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
-  const result = await dynamo.send(
-    new ScanCommand({
-      TableName: JOBS_TABLE,
-      Limit: 50,
-    }),
-  );
+  const origin = event.headers?.origin ?? event.headers?.Origin;
+  const userId: string =
+    (event.requestContext as any)?.authorizer?.claims?.sub ?? 'anonymous';
 
-  const jobs = (result.Items ?? []).sort(
-    (a, b) =>
-      new Date(b.createdAt as string).getTime() -
-      new Date(a.createdAt as string).getTime(),
+  const result = await dynamo.send(
+    new QueryCommand({
+      TableName: JOBS_TABLE,
+      IndexName: 'userId-index',
+      KeyConditionExpression: 'userId = :uid',
+      ExpressionAttributeValues: { ':uid': userId },
+      ScanIndexForward: false,
+    }),
   );
 
   return {
     statusCode: 200,
-    headers: httpHeaders(event.headers?.origin ?? event.headers?.Origin),
-    body: JSON.stringify({ jobs }),
+    headers: httpHeaders(origin),
+    body: JSON.stringify({ jobs: result.Items ?? [] }),
   };
 }

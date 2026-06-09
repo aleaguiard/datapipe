@@ -9,6 +9,7 @@ export type JobStatus =
 
 export interface Job {
   pk: string;
+  userId: string;
   etag: string;
   status: JobStatus;
   schemaType: SchemaType;

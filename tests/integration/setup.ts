@@ -65,8 +65,22 @@ export default async function globalSetup() {
   if (!process.env.JEST_INTEGRATION) return;
 
   await resetTable('datapipe-jobs', {
-    AttributeDefinitions: [{ AttributeName: 'pk', AttributeType: 'S' }],
+    AttributeDefinitions: [
+      { AttributeName: 'pk', AttributeType: 'S' },
+      { AttributeName: 'userId', AttributeType: 'S' },
+      { AttributeName: 'createdAt', AttributeType: 'S' },
+    ],
     KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'userId-index',
+        KeySchema: [
+          { AttributeName: 'userId', KeyType: 'HASH' },
+          { AttributeName: 'createdAt', KeyType: 'RANGE' },
+        ],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
   });
 
   await resetTable('datapipe-rows', {
