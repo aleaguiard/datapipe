@@ -22,8 +22,9 @@ variable "environment" {
 }
 
 variable "owner" {
-  type    = string
-  default = "ale-aguiar"
+  type        = string
+  default     = "ale-aguiar"
+  description = "Owner tag value applied to all resources"
 }
 
 variable "alarm_email" {

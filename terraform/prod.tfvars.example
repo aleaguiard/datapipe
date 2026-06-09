@@ -1,3 +1,7 @@
 # Copy to prod.tfvars (gitignored) and fill in values
 region         = "eu-west-1"
 allowed_origin = "http://datapipe-frontend-<account-id>.s3-website-eu-west-1.amazonaws.com"
+environment    = "prod"
+owner          = "ale-aguiar"
+alarm_email    = ""
+budget_amount  = "20"
