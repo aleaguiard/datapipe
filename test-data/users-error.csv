@@ -1,0 +1,4 @@
+name,email,age
+,not-an-email,abc
+,bad-email,xyz
+,,notanumber
