@@ -30,14 +30,14 @@ resource "aws_cloudwatch_metric_alarm" "dlq_depth" {
   }
 }
 
-# Alarm: Lambda processor errors
+# Alarm: messages sent to DLQ (processor exhausted all retries)
 resource "aws_cloudwatch_metric_alarm" "processor_errors" {
   alarm_name          = "datapipe-processor-errors"
-  alarm_description   = "datapipe-processor Lambda invocation errors"
+  alarm_description   = "Messages reached DLQ — processor failed all retries"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
+  metric_name         = "NumberOfMessagesSentToDLQ"
+  namespace           = "AWS/SQS"
   period              = 60
   statistic           = "Sum"
   threshold           = 0
@@ -46,7 +46,7 @@ resource "aws_cloudwatch_metric_alarm" "processor_errors" {
   ok_actions          = [aws_sns_topic.alarms.arn]
 
   dimensions = {
-    FunctionName = aws_lambda_function.processor.function_name
+    QueueName = aws_sqs_queue.processing.name
   }
 }
 
