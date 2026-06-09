@@ -27,3 +27,13 @@ output "cognito_client_id" {
   description = "Cognito App Client ID for the frontend"
   value       = var.localstack_endpoint == "" ? aws_cognito_user_pool_client.frontend.id : null
 }
+
+output "frontend_bucket" {
+  description = "Frontend S3 bucket name"
+  value       = aws_s3_bucket.frontend.bucket
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for cache invalidation"
+  value       = var.localstack_endpoint == "" ? aws_cloudfront_distribution.frontend[0].id : null
+}
