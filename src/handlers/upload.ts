@@ -106,7 +106,7 @@ export async function handler(
           {
             Put: {
               TableName: JOBS_TABLE,
-              Item: { pk: `etag#${etag}#${schemaType}`, jobId, createdAt: now },
+              Item: { pk: `etag#${userId}#${etag}#${schemaType}`, jobId, createdAt: now },
               ConditionExpression: 'attribute_not_exists(pk)',
             },
           },
