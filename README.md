@@ -5,6 +5,7 @@ Serverless bulk file import platform built on AWS. Upload CSV or JSON files thro
 ## Architecture
 
 ```
+Browser → CloudFront → S3 (static frontend)
 Browser → API Gateway → UploadFunction → S3 + DynamoDB + SQS
                                                       ↓
                                            ProcessorFunction (SQS trigger)
@@ -14,6 +15,7 @@ Browser → API Gateway → UploadFunction → S3 + DynamoDB + SQS
 
 | Layer     | Service                                         |
 |-----------|-------------------------------------------------|
+| CDN       | Amazon CloudFront (HTTPS, price class 100)      |
 | API       | Amazon API Gateway (REST)                       |
 | Compute   | AWS Lambda (Node.js 22.x, arm64 / Graviton)     |
 | Queue     | Amazon SQS + Dead Letter Queue                  |
@@ -154,22 +156,28 @@ npm run build
 
 # 2. Configure prod tfvars
 cp terraform/prod.tfvars.example terraform/prod.tfvars
-# edit prod.tfvars — set allowed_origin to your frontend S3 URL
+# First deploy: leave allowed_origin empty, fill in after step 3
 
-# 3. Deploy infrastructure
+# 3. Deploy infrastructure (creates CloudFront + all AWS resources)
 terraform -chdir=terraform init
 terraform -chdir=terraform apply -var-file=prod.tfvars
 
-# 4. Upload frontend
+# Terraform prints:
+#   api_url         = https://<id>.execute-api.eu-west-1.amazonaws.com/api
+#   cloudfront_url  = https://<hash>.cloudfront.net
+#   frontend_url    = http://datapipe-frontend-<account>.s3-website-eu-west-1.amazonaws.com
+
+# 4. Update allowed_origin in prod.tfvars to the cloudfront_url, then redeploy
+#    allowed_origin = "https://<hash>.cloudfront.net"
+terraform -chdir=terraform apply -var-file=prod.tfvars
+
+# 5. Upload frontend
 API_URL=$(terraform -chdir=terraform output -raw api_url)
-FRONTEND_BUCKET=$(terraform -chdir=terraform output -raw uploads_bucket | sed 's/uploads/frontend/')
-sed "s|window.DATAPIPE_API_URL.*|window.DATAPIPE_API_URL = '${API_URL}';|" \
-  frontend/config.example.js > /tmp/config.js
-aws s3 sync frontend/ s3://${FRONTEND_BUCKET}/
-aws s3 cp /tmp/config.js s3://${FRONTEND_BUCKET}/config.js
+echo "window.DATAPIPE_API_URL = '${API_URL}';" > frontend/config.js
+aws s3 sync frontend/ s3://datapipe-frontend-<account-id>/
 ```
 
-Requires AWS credentials with Lambda, DynamoDB, SQS, S3, and API Gateway permissions.  
+Requires AWS credentials with Lambda, DynamoDB, SQS, S3, API Gateway, and CloudFront permissions.  
 Uses a pre-existing `studentLambdaExecutionRole` IAM role — no `iam:CreateRole` needed.
 
 ## Git Workflow
