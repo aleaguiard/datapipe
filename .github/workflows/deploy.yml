@@ -41,6 +41,8 @@ jobs:
 
       - name: Terraform apply
         run: terraform -chdir=terraform apply -auto-approve
+        env:
+          TF_VAR_alarm_email: ${{ secrets.TF_VAR_alarm_email }}
 
       - name: Write frontend config
         run: |
