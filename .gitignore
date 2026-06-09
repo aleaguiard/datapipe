@@ -1,0 +1,29 @@
+node_modules/
+.aws-sam/
+.build/
+dist/
+coverage/
+*.js.map
+.DS_Store
+
+# env files
+.env
+.env.*
+!.env.local.example
+*.tsbuildinfo
+
+# local config
+env.local.json
+env.*.json
+!env.example.json
+frontend/config.js
+
+# terraform
+terraform/*.tfvars
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# docs (course deliverables, not tracked in git)
+docs/
