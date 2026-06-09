@@ -45,6 +45,10 @@ async function _exchangeCode(code) {
     }),
   });
   const tokens = await res.json();
+  if (!res.ok || !tokens.id_token) {
+    console.error('Token exchange failed', tokens);
+    return;
+  }
   sessionStorage.setItem('id_token',      tokens.id_token);
   sessionStorage.setItem('refresh_token', tokens.refresh_token || '');
   sessionStorage.removeItem('pkce_verifier');
