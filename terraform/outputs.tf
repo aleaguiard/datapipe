@@ -12,3 +12,8 @@ output "uploads_bucket" {
   description = "S3 uploads bucket name"
   value       = aws_s3_bucket.uploads.bucket
 }
+
+output "cloudfront_url" {
+  description = "CloudFront distribution domain (HTTPS frontend URL)"
+  value       = length(aws_cloudfront_distribution.frontend) > 0 ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : null
+}
