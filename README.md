@@ -1,5 +1,8 @@
 # Datapipe
 
+![CI](https://github.com/aleaguiard/datapipe/actions/workflows/ci.yml/badge.svg)
+![Deploy](https://github.com/aleaguiard/datapipe/actions/workflows/deploy.yml/badge.svg)
+
 Serverless bulk file import platform built on AWS. Upload CSV or JSON files through a web UI, validate each row against a predefined schema, and track processing status in real time.
 
 ## Architecture
