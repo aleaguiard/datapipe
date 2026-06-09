@@ -48,10 +48,20 @@
     footer { text-align: center; padding: 1.5rem; font-size: .8rem; color: #aaa; }
     footer a { color: #aaa; text-decoration: none; }
     footer a:hover { color: #555; }
+    header { display: flex; justify-content: space-between; align-items: center; }
+    #login-wall { max-width:400px; margin:4rem auto; text-align:center; padding:2rem; }
+    #login-wall h2 { margin-bottom:1rem; color:#444; }
+    #login-wall p { margin-bottom:1.5rem; font-size:.9rem; color:#666; }
   </style>
 </head>
 <body>
-  <header><h1>Datapipe</h1></header>
+  <header>
+    <h1>Datapipe</h1>
+    <div id="auth-bar" style="display:none;align-items:center;gap:1rem">
+      <span id="user-email" style="font-size:.85rem;opacity:.8"></span>
+      <button onclick="logout()" style="background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;padding:.3rem .8rem;font-size:.8rem;cursor:pointer;border-radius:4px">Sign out</button>
+    </div>
+  </header>
   <main>
     <div class="card">
       <h2>Upload File</h2>
@@ -85,6 +95,11 @@
       </table>
     </div>
   </main>
+  <div id="login-wall" style="display:none">
+    <h2>Welcome to Datapipe</h2>
+    <p>Sign in to upload files and view your import jobs.</p>
+    <button onclick="login()" style="font-size:1rem;padding:.75rem 2rem">Sign in / Create account</button>
+  </div>
   <div id="toast"></div>
   <footer>Built by <a href="https://github.com/aleaguiard" target="_blank" rel="noopener">Ale Aguiar</a> · AWS Cloud Course 2026</footer>
   <script src="config.js" onerror="void 0"></script>

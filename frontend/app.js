@@ -1,3 +1,111 @@
+// ── Auth (Cognito PKCE) ───────────────────────────────────────────────────────
+const COGNITO_DOMAIN    = window.COGNITO_DOMAIN    || '';
+const COGNITO_CLIENT_ID = window.COGNITO_CLIENT_ID || '';
+const REDIRECT_URI      = window.COGNITO_REDIRECT_URI || window.location.origin;
+
+function _b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+async function _sha256(plain) {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
+}
+function _randomString(len) {
+  const arr = new Uint8Array(len);
+  crypto.getRandomValues(arr);
+  return _b64url(arr);
+}
+
+async function login() {
+  const verifier  = _randomString(64);
+  const challenge = _b64url(await _sha256(verifier));
+  sessionStorage.setItem('pkce_verifier', verifier);
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id:     COGNITO_CLIENT_ID,
+    redirect_uri:  REDIRECT_URI,
+    scope:         'openid email profile',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+  });
+  window.location.href = `${COGNITO_DOMAIN}/oauth2/authorize?${params}`;
+}
+
+async function _exchangeCode(code) {
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  const res = await fetch(`${COGNITO_DOMAIN}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type:    'authorization_code',
+      client_id:     COGNITO_CLIENT_ID,
+      redirect_uri:  REDIRECT_URI,
+      code,
+      code_verifier: verifier,
+    }),
+  });
+  const tokens = await res.json();
+  sessionStorage.setItem('id_token',      tokens.id_token);
+  sessionStorage.setItem('refresh_token', tokens.refresh_token || '');
+  sessionStorage.removeItem('pkce_verifier');
+}
+
+function getIdToken() {
+  return sessionStorage.getItem('id_token');
+}
+
+function _parseJwt(token) {
+  try {
+    return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch { return null; }
+}
+
+function logout() {
+  sessionStorage.clear();
+  if (COGNITO_DOMAIN) {
+    window.location.href = `${COGNITO_DOMAIN}/logout?client_id=${COGNITO_CLIENT_ID}&logout_uri=${encodeURIComponent(REDIRECT_URI)}`;
+  } else {
+    window.location.reload();
+  }
+}
+
+async function initAuth() {
+  // No Cognito configured (local dev without auth)
+  if (!COGNITO_DOMAIN || !COGNITO_CLIENT_ID) {
+    document.getElementById('login-wall').style.display = 'none';
+    document.getElementById('auth-bar').style.display = 'none';
+    document.querySelector('main').style.display = '';
+    return;
+  }
+
+  // Handle callback with auth code
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code');
+  if (code) {
+    await _exchangeCode(code);
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
+  const token  = getIdToken();
+  const claims = token ? _parseJwt(token) : null;
+  const now    = Math.floor(Date.now() / 1000);
+
+  if (claims && claims.exp > now) {
+    // Logged in
+    document.getElementById('user-email').textContent = claims.email || claims.sub;
+    document.getElementById('auth-bar').style.display = 'flex';
+    document.getElementById('login-wall').style.display = 'none';
+    document.querySelector('main').style.display = '';
+    loadJobs();
+  } else {
+    // Not logged in
+    sessionStorage.removeItem('id_token');
+    document.querySelector('main').style.display = 'none';
+    document.getElementById('login-wall').style.display = 'block';
+  }
+}
+// ── End Auth ──────────────────────────────────────────────────────────────────
+
 let _toastTimer = null;
 function showToast(msg, type = 'success') {
   const el = document.getElementById('toast');
@@ -7,10 +115,12 @@ function showToast(msg, type = 'success') {
   _toastTimer = setTimeout(() => { el.className = ''; }, 3000);
 }
 
-// Set DATAPIPE_API_URL in config.js for production (gitignored)
-const API_BASE = window.location.hostname === 'localhost'
-  ? 'http://localhost:3000'
-  : (window.DATAPIPE_API_URL || '');
+const API_BASE = window.DATAPIPE_API_URL || '';
+
+function authHeaders() {
+  const token = getIdToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 const TERMINAL = new Set(['COMPLETED', 'FAILED', 'PARTIAL_FAILURE']);
 const activePolling = new Map(); // jobId → intervalId
@@ -19,7 +129,7 @@ function startPolling(jobId) {
   if (activePolling.has(jobId)) return;
   const id = setInterval(async () => {
     try {
-      const res = await fetch(`${API_BASE}/jobs/${jobId}`);
+      const res = await fetch(`${API_BASE}/jobs/${jobId}`, { headers: authHeaders() });
       if (!res.ok) return;
       const job = await res.json();
       updateJobRow(job);
@@ -75,7 +185,7 @@ async function uploadFile() {
   btn.textContent = 'Uploading…';
 
   try {
-    const res = await fetch(`${API_BASE}/jobs/upload`, { method: 'POST', body: formData });
+    const res = await fetch(`${API_BASE}/jobs/upload`, { method: 'POST', headers: authHeaders(), body: formData });
     const data = await res.json();
 
     if (res.ok) {
@@ -112,7 +222,7 @@ async function toggleErrors(jobId, btn) {
   btn.disabled = true;
 
   try {
-    const res = await fetch(`${API_BASE}/jobs/${jobId}/rows?failed=true`);
+    const res = await fetch(`${API_BASE}/jobs/${jobId}/rows?failed=true`, { headers: authHeaders() });
     const data = await res.json();
     const rows = data.rows || [];
 
@@ -153,7 +263,7 @@ async function loadJobs() {
   activePolling.forEach((_, jobId) => stopPolling(jobId));
 
   try {
-    const res = await fetch(`${API_BASE}/jobs`);
+    const res = await fetch(`${API_BASE}/jobs`, { headers: authHeaders() });
     const data = await res.json();
     const jobs = (data.jobs || []).filter(j => !j.pk.startsWith('etag#'));
 
@@ -192,4 +302,4 @@ async function loadJobs() {
   }
 }
 
-loadJobs();
+initAuth();
