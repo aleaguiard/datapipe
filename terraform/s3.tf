@@ -25,6 +25,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   }
 }
 
+resource "aws_s3_bucket_versioning" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 resource "aws_s3_bucket" "frontend" {
   bucket        = "datapipe-frontend-${data.aws_caller_identity.current.account_id}"
   force_destroy = true

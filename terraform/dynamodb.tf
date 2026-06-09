@@ -7,6 +7,10 @@ resource "aws_dynamodb_table" "jobs" {
     name = "pk"
     type = "S"
   }
+
+  point_in_time_recovery {
+    enabled = true
+  }
 }
 
 resource "aws_dynamodb_table" "rows" {
@@ -34,5 +38,9 @@ resource "aws_dynamodb_table" "rows" {
     hash_key        = "jobId"
     range_key       = "rowIndex"
     projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
   }
 }
