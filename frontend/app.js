@@ -214,6 +214,23 @@ function copyJobId(id) {
   if (el) { el.textContent = 'Copied!'; setTimeout(() => { el.textContent = 'Click to copy'; }, 1500); }
 }
 
+function _failedRowHtml(r) {
+  return `<tr>
+    <td style="font-family:monospace">${r.rowIndex}</td>
+    <td style="font-family:monospace;word-break:break-all">${JSON.stringify(r.data)}</td>
+    <td class="err-msg">${(r.errors || []).join(', ')}</td>
+  </tr>`;
+}
+
+async function _fetchFailedRows(jobId, cursor) {
+  const qs = new URLSearchParams({ failed: 'true' });
+  if (cursor) qs.set('cursor', cursor);
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/rows?${qs}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return { rows: data.rows || [], nextCursor: data.nextCursor || null };
+}
+
 async function toggleErrors(jobId, btn) {
   const existingRow = document.getElementById('errors-' + jobId);
   if (existingRow) {
@@ -226,31 +243,55 @@ async function toggleErrors(jobId, btn) {
   btn.disabled = true;
 
   try {
-    const res = await fetch(`${API_BASE}/jobs/${jobId}/rows?failed=true`, { headers: authHeaders() });
-    const data = await res.json();
-    const rows = data.rows || [];
+    const { rows, nextCursor } = await _fetchFailedRows(jobId);
 
     const tr = document.createElement('tr');
     tr.id = 'errors-' + jobId;
     tr.className = 'errors-row';
     tr.innerHTML = `<td colspan="7">
       <div class="errors-inner">
-        <strong style="color:#991b1b">${rows.length} failed row(s) shown (max 50)</strong>
+        <strong style="color:#991b1b" class="errors-count"></strong>
         <table style="margin-top:.5rem">
           <thead><tr><th>#</th><th>Data</th><th>Errors</th></tr></thead>
           <tbody>
             ${rows.length === 0
               ? '<tr><td colspan="3" style="color:#999">No failed rows found.</td></tr>'
-              : rows.map(r => `<tr>
-                  <td style="font-family:monospace">${r.rowIndex}</td>
-                  <td style="font-family:monospace;word-break:break-all">${JSON.stringify(r.data)}</td>
-                  <td class="err-msg">${(r.errors || []).join(', ')}</td>
-                </tr>`).join('')}
+              : rows.map(_failedRowHtml).join('')}
           </tbody>
         </table>
+        <button class="load-more-btn" style="margin-top:.5rem">Load more</button>
       </div>
     </td>`;
 
+    const tbody = tr.querySelector('tbody');
+    const countEl = tr.querySelector('.errors-count');
+    const moreBtn = tr.querySelector('.load-more-btn');
+    let shown = rows.length;
+    let cursor = nextCursor;
+
+    const refresh = () => {
+      countEl.textContent = `${shown} failed row(s) shown${cursor ? ' — more available' : ''}`;
+      moreBtn.style.display = cursor ? '' : 'none';
+    };
+
+    moreBtn.addEventListener('click', async () => {
+      moreBtn.disabled = true;
+      moreBtn.textContent = 'Loading…';
+      try {
+        const page = await _fetchFailedRows(jobId, cursor);
+        tbody.insertAdjacentHTML('beforeend', page.rows.map(_failedRowHtml).join(''));
+        shown += page.rows.length;
+        cursor = page.nextCursor;
+        moreBtn.textContent = 'Load more';
+      } catch (e) {
+        moreBtn.textContent = 'Error — retry';
+      } finally {
+        moreBtn.disabled = false;
+        refresh();
+      }
+    });
+
+    refresh();
     btn.closest('tr').insertAdjacentElement('afterend', tr);
     btn.textContent = 'Hide';
   } catch (e) {

@@ -23,7 +23,6 @@ export interface Job {
 }
 
 export interface Row {
-  pk: string;
   jobId: string;
   rowIndex: number;
   data: Record<string, unknown>;

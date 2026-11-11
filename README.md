@@ -47,8 +47,9 @@ The core challenge is reliable bulk async processing — files can have thousand
 - **Decoupled upload and processing:** Upload Lambda responds in <1s regardless of file size. SQS carries the work to the Processor Lambda asynchronously — no HTTP timeout risk.
 - **Lambda over ECS/EC2:** No idle cost, automatic scaling, zero ops. For batch workloads that run on-demand, serverless is cheaper and simpler than maintaining always-on containers.
 - **DynamoDB over RDS:** Schema-free rows (each import may have different fields), single-digit millisecond reads for status polling, and pay-per-request billing that costs nothing when idle.
+- **Two tables, not single-table:** jobs and rows are never read together (status reads a job, the rows endpoint reads rows), so single-table design would add key complexity without saving a request. Each table is keyed for its access pattern: `jobs` by `pk` with a `userId` GSI for listing, `rows` by `(jobId, rowIndex)` so a job's rows are read in order straight from the base table — no GSI, no duplicated writes.
 - **SQS over SNS/EventBridge:** Built-in retry with visibility timeout, dead letter queue after 3 failures, and exactly-once processing with conditional writes on the consumer side.
-- **Terraform over SAM/CDK:** Gives full control over every resource (API GW binary types, DynamoDB GSI, CloudFront) without framework abstractions hiding behaviour.
+- **Terraform over SAM/CDK:** Gives full control over every resource (API GW binary types, DynamoDB keys and GSIs, CloudFront) without framework abstractions hiding behaviour.
 - **CloudFront over direct S3:** HTTPS on the frontend with zero extra infrastructure. Price class 100 covers EU + NA edge locations — sufficient for the course audience.
 
 Trade-offs accepted: API Gateway's 10 MB payload limit caps file size (pre-signed URL upload would remove this); shared `studentLambdaExecutionRole` is broader than least-privilege per-function IAM; no custom domain (would require ACM + Route 53).
@@ -113,7 +114,7 @@ test-data/           # Sample files for manual testing
 | `POST` | `/jobs/upload` | Upload file — `multipart/form-data`: `file` + `schemaType` |
 | `GET`  | `/jobs` | List jobs (most recent first) |
 | `GET`  | `/jobs/{jobId}` | Get job status and counters |
-| `GET`  | `/jobs/{jobId}/rows?failed=true` | Get rows (filter failed, max 50) |
+| `GET`  | `/jobs/{jobId}/rows?failed=true&cursor=…` | Get rows in order, 50 per page (`failed=true` → only invalid rows). Response includes `nextCursor`; pass it back as `cursor` for the next page (`null` = last page) |
 
 ## Local Development
 
@@ -219,7 +220,9 @@ GET  /jobs/{jobId}/rows?failed=true → 200 {
     { "rowIndex": 2, "valid": false, "errors": ["email: invalid format"] },
     { "rowIndex": 5, "valid": false, "errors": ["email: required"] },
     { "rowIndex": 8, "valid": false, "errors": ["name: required", "email: required"] }
-  ]
+  ],
+  "count": 3,
+  "nextCursor": null
 }
 ```
 
@@ -289,7 +292,7 @@ POST /jobs/upload (file: data.csv, schema: contacts) → 200 { "jobId": "def-456
 
 The deduplication is scoped to `(user, file content, schema)` — not just file content — so the same bytes can be imported under different schemas.
 
-**Row-level idempotency:** the Processor uses `ConditionExpression: attribute_not_exists(pk)` on every DynamoDB row write. Reprocessing the same SQS message (e.g. after a Lambda timeout) will not duplicate rows — duplicate writes are silently ignored.
+**Row-level idempotency:** rows are keyed by `(jobId, rowIndex)` and the Processor uses `ConditionExpression: attribute_not_exists(jobId)` on every row write. Reprocessing the same SQS message (e.g. after a Lambda timeout) will not duplicate rows — duplicate writes are silently ignored.
 
 ---
 

@@ -33,12 +33,8 @@ resource "aws_dynamodb_table" "jobs" {
 resource "aws_dynamodb_table" "rows" {
   name         = "datapipe-rows"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "pk"
-
-  attribute {
-    name = "pk"
-    type = "S"
-  }
+  hash_key     = "jobId"
+  range_key    = "rowIndex"
 
   attribute {
     name = "jobId"
@@ -48,13 +44,6 @@ resource "aws_dynamodb_table" "rows" {
   attribute {
     name = "rowIndex"
     type = "N"
-  }
-
-  global_secondary_index {
-    name            = "jobId-index"
-    hash_key        = "jobId"
-    range_key       = "rowIndex"
-    projection_type = "ALL"
   }
 
   point_in_time_recovery {
