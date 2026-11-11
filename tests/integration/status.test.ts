@@ -36,7 +36,7 @@ describe('status handler', () => {
     const { jobId } = JSON.parse(uploadResult.body);
 
     const result = await statusHandler(
-      buildGetEvent(`/jobs/${jobId}`, { jobId }),
+      buildGetEvent(`/jobs/${jobId}`, { jobId }, 'test-user-id'),
     );
 
     expect(result.statusCode).toBe(200);
@@ -48,9 +48,34 @@ describe('status handler', () => {
 
   it('returns 404 for non-existent jobId', async () => {
     const result = await statusHandler(
-      buildGetEvent('/jobs/non-existent-id', { jobId: 'non-existent-id' }),
+      buildGetEvent('/jobs/non-existent-id', { jobId: 'non-existent-id' }, 'test-user-id'),
     );
     expect(result.statusCode).toBe(404);
+  });
+
+  it("returns 404 for another user's job", async () => {
+    const csv = Buffer.from('name,email\nOwnerAlice,owner-alice@example.com');
+    const uploadResult = await uploadHandler(
+      buildMultipartEvent(csv, 'status-owner.csv', 'users', 'owner-user'),
+    );
+    const { jobId } = JSON.parse(uploadResult.body);
+
+    const result = await statusHandler(
+      buildGetEvent(`/jobs/${jobId}`, { jobId }, 'intruder-user'),
+    );
+    expect(result.statusCode).toBe(404);
+  });
+
+  it('does not expose etag dedup records', async () => {
+    const result = await statusHandler(
+      buildGetEvent('/jobs/x', { jobId: 'etag#test-user-id#abc#users' }, 'test-user-id'),
+    );
+    expect(result.statusCode).toBe(404);
+  });
+
+  it('returns 401 without auth claims', async () => {
+    const result = await statusHandler(buildGetEvent('/jobs/x', { jobId: 'x' }));
+    expect(result.statusCode).toBe(401);
   });
 });
 

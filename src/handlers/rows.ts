@@ -1,8 +1,10 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { QueryCommand, QueryCommandInput } from '@aws-sdk/lib-dynamodb';
 import { dynamo, httpHeaders } from '../lib/aws-clients';
+import { getOwnedJob, getUserId } from '../lib/auth';
 import { Row } from '../types';
 
+const JOBS_TABLE = process.env.JOBS_TABLE!;
 const ROWS_TABLE = process.env.ROWS_TABLE!;
 const PAGE_SIZE = 50;
 // Upper bound on DynamoDB round-trips per request when filtering sparse
@@ -39,6 +41,15 @@ export async function handler(
     };
   }
 
+  const userId = getUserId(event);
+  if (!userId) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'Unauthorized' }),
+    };
+  }
+
   const onlyFailed = event.queryStringParameters?.failed === 'true';
   const rawCursor = event.queryStringParameters?.cursor;
 
@@ -53,6 +64,14 @@ export async function handler(
       };
     }
     startAfter = decoded;
+  }
+
+  if (!(await getOwnedJob(JOBS_TABLE, jobId, userId))) {
+    return {
+      statusCode: 404,
+      headers,
+      body: JSON.stringify({ error: 'Job not found' }),
+    };
   }
 
   const rows: Row[] = [];
