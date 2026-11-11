@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { GetCommand } from '@aws-sdk/lib-dynamodb';
-import { dynamo, httpHeaders } from '../lib/aws-clients';
+import { httpHeaders } from '../lib/aws-clients';
+import { getOwnedJob, getUserId } from '../lib/auth';
 
 const JOBS_TABLE = process.env.JOBS_TABLE!;
 
@@ -17,11 +17,18 @@ export async function handler(
     };
   }
 
-  const result = await dynamo.send(
-    new GetCommand({ TableName: JOBS_TABLE, Key: { pk: jobId } }),
-  );
+  const userId = getUserId(event);
+  if (!userId) {
+    return {
+      statusCode: 401,
+      headers: httpHeaders(event.headers?.origin ?? event.headers?.Origin),
+      body: JSON.stringify({ error: 'Unauthorized' }),
+    };
+  }
 
-  if (!result.Item) {
+  const job = await getOwnedJob(JOBS_TABLE, jobId, userId);
+
+  if (!job) {
     return {
       statusCode: 404,
       headers: httpHeaders(event.headers?.origin ?? event.headers?.Origin),
@@ -32,6 +39,6 @@ export async function handler(
   return {
     statusCode: 200,
     headers: httpHeaders(event.headers?.origin ?? event.headers?.Origin),
-    body: JSON.stringify(result.Item),
+    body: JSON.stringify(job),
   };
 }

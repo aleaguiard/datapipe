@@ -20,7 +20,12 @@ function buildSQSEvent(jobId: string, s3Key: string, schemaType: string, etag: s
   };
 }
 
-function buildGetRowsEvent(jobId: string, failed?: boolean, cursor?: string): APIGatewayProxyEvent {
+function buildGetRowsEvent(
+  jobId: string,
+  failed?: boolean,
+  cursor?: string,
+  userId: string | null = 'test-user-id',
+): APIGatewayProxyEvent {
   const qs: Record<string, string> = {};
   if (failed) qs.failed = 'true';
   if (cursor) qs.cursor = cursor;
@@ -33,7 +38,7 @@ function buildGetRowsEvent(jobId: string, failed?: boolean, cursor?: string): AP
     multiValueQueryStringParameters: null,
     pathParameters: { jobId },
     stageVariables: null,
-    requestContext: {} as never,
+    requestContext: (userId ? { authorizer: { claims: { sub: userId } } } : {}) as never,
     resource: '',
     body: null,
     isBase64Encoded: false,
@@ -142,5 +147,16 @@ describe('rows handler', () => {
   it('rejects a malformed cursor with 400', async () => {
     const result = await rowsHandler(buildGetRowsEvent('any-job', false, 'not-a-cursor'));
     expect(result.statusCode).toBe(400);
+  });
+
+  it("returns 404 for another user's job rows", async () => {
+    const jobId = await processCsv(['Private,private@example.com'], 'rows-owner.csv');
+    const result = await rowsHandler(buildGetRowsEvent(jobId, false, undefined, 'intruder-user'));
+    expect(result.statusCode).toBe(404);
+  });
+
+  it('returns 401 without auth claims', async () => {
+    const result = await rowsHandler(buildGetRowsEvent('any-job', false, undefined, null));
+    expect(result.statusCode).toBe(401);
   });
 });

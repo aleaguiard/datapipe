@@ -148,26 +148,43 @@ function stopPolling(jobId) {
   activePolling.delete(jobId);
 }
 
+// Everything rendered via innerHTML that comes from the API (file names, CSV
+// cell values, validation messages) is user-controlled and must be escaped.
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
+function _num(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _errorsButton(jobId) {
+  return `<button class="errors-btn" data-action="errors" data-jobid="${esc(jobId)}">Errors</button>`;
+}
+
 function updateJobRow(job) {
-  const row = document.querySelector(`tr[data-jobid="${job.pk}"]`);
+  const row = document.querySelector(`tr[data-jobid="${CSS.escape(job.pk)}"]`);
   if (!row) return;
 
   const badge = row.querySelector('.badge');
   if (badge) {
-    badge.className = `badge badge-${job.status}`;
+    badge.className = `badge badge-${esc(job.status)}`;
     badge.textContent = job.status;
   }
 
   const rowsCell = row.querySelector('[data-cell="rows"]');
   if (rowsCell) {
-    const failed = job.failedRows || 0;
-    rowsCell.innerHTML = `${job.processedRows || 0}/${job.totalRows || 0}` +
+    const failed = _num(job.failedRows);
+    rowsCell.innerHTML = `${_num(job.processedRows)}/${_num(job.totalRows)}` +
       (failed ? ` <span style="color:#dc2626">(${failed} failed)</span>` : '');
   }
 
   const actionsCell = row.querySelector('[data-cell="actions"]');
   if (actionsCell && !actionsCell.querySelector('.errors-btn') && (job.failedRows || 0) > 0) {
-    actionsCell.innerHTML = `<button class="errors-btn" onclick="toggleErrors('${job.pk}', this)">Errors</button>`;
+    actionsCell.innerHTML = _errorsButton(job.pk);
   }
 }
 
@@ -216,9 +233,9 @@ function copyJobId(id) {
 
 function _failedRowHtml(r) {
   return `<tr>
-    <td style="font-family:monospace">${r.rowIndex}</td>
-    <td style="font-family:monospace;word-break:break-all">${JSON.stringify(r.data)}</td>
-    <td class="err-msg">${(r.errors || []).join(', ')}</td>
+    <td style="font-family:monospace">${_num(r.rowIndex)}</td>
+    <td style="font-family:monospace;word-break:break-all">${esc(JSON.stringify(r.data))}</td>
+    <td class="err-msg">${esc((r.errors || []).join(', '))}</td>
   </tr>`;
 }
 
@@ -318,22 +335,21 @@ async function loadJobs() {
     }
 
     tbody.innerHTML = jobs.map(job => {
-      const short = job.pk.slice(0, 8);
-      const hasErrors = (job.failedRows || 0) > 0;
-      const failed = job.failedRows || 0;
-      return `<tr data-jobid="${job.pk}">
+      const short = esc(job.pk.slice(0, 8));
+      const failed = _num(job.failedRows);
+      return `<tr data-jobid="${esc(job.pk)}">
         <td>
-          <span class="job-id" onclick="copyJobId('${job.pk}')" id="wrap-${short}">
+          <span class="job-id" data-action="copy" data-jobid="${esc(job.pk)}" id="wrap-${short}">
             ${short}…
             <span class="tooltip" id="tip-${short}">Click to copy</span>
           </span>
         </td>
-        <td>${job.filename || '—'}</td>
-        <td>${job.schemaType || '—'}</td>
-        <td><span class="badge badge-${job.status}">${job.status}</span></td>
-        <td data-cell="rows">${job.processedRows || 0}/${job.totalRows || 0}${failed ? ` <span style="color:#dc2626">(${failed} failed)</span>` : ''}</td>
-        <td>${new Date(job.createdAt).toLocaleString()}</td>
-        <td data-cell="actions">${hasErrors ? `<button class="errors-btn" onclick="toggleErrors('${job.pk}', this)">Errors</button>` : ''}</td>
+        <td>${esc(job.filename || '—')}</td>
+        <td>${esc(job.schemaType || '—')}</td>
+        <td><span class="badge badge-${esc(job.status)}">${esc(job.status)}</span></td>
+        <td data-cell="rows">${_num(job.processedRows)}/${_num(job.totalRows)}${failed ? ` <span style="color:#dc2626">(${failed} failed)</span>` : ''}</td>
+        <td>${esc(new Date(job.createdAt).toLocaleString())}</td>
+        <td data-cell="actions">${failed > 0 ? _errorsButton(job.pk) : ''}</td>
       </tr>`;
     }).join('');
 
@@ -343,8 +359,17 @@ async function loadJobs() {
       .forEach(j => startPolling(j.pk));
 
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="7" style="color:#dc2626">Error loading jobs: ${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#dc2626">Error loading jobs: ${esc(e.message)}</td></tr>`;
   }
 }
+
+// Job IDs are passed through data attributes instead of inline onclick
+// strings, so no API value is ever evaluated as JavaScript.
+document.getElementById('jobs-tbody').addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-action]');
+  if (!el) return;
+  if (el.dataset.action === 'errors') toggleErrors(el.dataset.jobid, el);
+  else if (el.dataset.action === 'copy') copyJobId(el.dataset.jobid);
+});
 
 initAuth();
