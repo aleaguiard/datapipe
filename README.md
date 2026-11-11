@@ -1,7 +1,6 @@
 # Datapipe
 
 ![CI](https://github.com/aleaguiard/datapipe/actions/workflows/ci.yml/badge.svg)
-![Deploy](https://github.com/aleaguiard/datapipe/actions/workflows/deploy.yml/badge.svg)
 
 Serverless bulk file import platform built on AWS. Upload CSV or JSON files through a web UI, validate each row against a predefined schema, and track processing status in real time.
 
@@ -165,9 +164,11 @@ npm run test:integration
 npm run lint && npm run typecheck
 ```
 
-**34 tests total** — 21 unit, 13 integration.
+**50 tests total** — 28 unit, 22 integration.
 
 ## Deploy to AWS
+
+> **Deployment status:** this project was deployed during a course on a temporary AWS Academy lab account, which is no longer available. There is no live instance; run it locally with Floci/LocalStack (see above). The `Deploy` workflow is manual-only (`workflow_dispatch`) and needs fresh `AWS_*` secrets for an account that provides `studentLambdaExecutionRole`.
 
 ```bash
 # 1. Build Lambda bundles
