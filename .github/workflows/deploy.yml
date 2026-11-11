@@ -1,8 +1,11 @@
 name: Deploy
 
+# Manual only. The original target was a temporary AWS Academy lab account
+# whose credentials are no longer available, so deploying on every push to
+# main would always fail. Run from the Actions tab after setting fresh
+# AWS_* secrets for an account that has studentLambdaExecutionRole.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
