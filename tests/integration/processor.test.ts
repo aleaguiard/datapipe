@@ -84,7 +84,6 @@ describe('processor handler', () => {
     const rows = await testDynamo.send(
       new QueryCommand({
         TableName: 'datapipe-rows',
-        IndexName: 'jobId-index',
         KeyConditionExpression: 'jobId = :jid',
         ExpressionAttributeValues: { ':jid': jobId },
       }),
@@ -114,7 +113,6 @@ describe('processor handler', () => {
     const rows = await testDynamo.send(
       new QueryCommand({
         TableName: 'datapipe-rows',
-        IndexName: 'jobId-index',
         KeyConditionExpression: 'jobId = :jid',
         ExpressionAttributeValues: { ':jid': jobId },
       }),

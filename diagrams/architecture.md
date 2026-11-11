@@ -24,7 +24,7 @@ graph TB
     subgraph storage ["Almacenamiento"]
         S3["S3 Uploads\nVersioning + lifecycle 7d"]
         DDB1["DynamoDB datapipe-jobs\nPITR - GSI userId-index"]
-        DDB2["DynamoDB datapipe-rows\nPITR - GSI jobId-index"]
+        DDB2["DynamoDB datapipe-rows\nPITR - PK jobId + SK rowIndex"]
     end
 
     subgraph async ["Procesado asíncrono"]

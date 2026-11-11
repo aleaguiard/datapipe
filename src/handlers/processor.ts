@@ -43,21 +43,18 @@ async function processJob(message: SQSJobMessage): Promise<void> {
 
   for (let i = 0; i < rows.length; i++) {
     const result = validateRow(rows[i], schema);
-    const pk = `${jobId}#${i}`;
-
     try {
       await dynamo.send(
         new PutCommand({
           TableName: ROWS_TABLE,
           Item: {
-            pk,
             jobId,
             rowIndex: i,
             data: result.data,
             valid: result.valid,
             errors: result.errors,
           },
-          ConditionExpression: 'attribute_not_exists(pk)',
+          ConditionExpression: 'attribute_not_exists(jobId)',
         }),
       );
     } catch (e) {

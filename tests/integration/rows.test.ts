@@ -20,17 +20,25 @@ function buildSQSEvent(jobId: string, s3Key: string, schemaType: string, etag: s
   };
 }
 
-function buildGetRowsEvent(jobId: string, failed?: boolean): APIGatewayProxyEvent {
+function buildGetRowsEvent(
+  jobId: string,
+  failed?: boolean,
+  cursor?: string,
+  userId: string | null = 'test-user-id',
+): APIGatewayProxyEvent {
+  const qs: Record<string, string> = {};
+  if (failed) qs.failed = 'true';
+  if (cursor) qs.cursor = cursor;
   return {
     httpMethod: 'GET',
     path: `/jobs/${jobId}/rows`,
     headers: {},
     multiValueHeaders: {},
-    queryStringParameters: failed ? { failed: 'true' } : null,
+    queryStringParameters: Object.keys(qs).length ? qs : null,
     multiValueQueryStringParameters: null,
     pathParameters: { jobId },
     stageVariables: null,
-    requestContext: {} as never,
+    requestContext: (userId ? { authorizer: { claims: { sub: userId } } } : {}) as never,
     resource: '',
     body: null,
     isBase64Encoded: false,
@@ -68,5 +76,87 @@ describe('rows handler', () => {
     expect(body.rows).toHaveLength(1);
     expect(body.rows[0].valid).toBe(false);
     expect(body.rows[0].errors.length).toBeGreaterThan(0);
+  });
+
+  async function processCsv(lines: string[], filename: string): Promise<string> {
+    const csv = Buffer.from(['name,email', ...lines].join('\n'));
+    const uploadResult = await uploadHandler(buildMultipartEvent(csv, filename, 'users'));
+    const { jobId } = JSON.parse(uploadResult.body);
+    const job = await getJob(jobId);
+    await processorHandler(buildSQSEvent(jobId, job!.s3Key, job!.schemaType, job!.etag));
+    return jobId;
+  }
+
+  async function fetchAll(jobId: string, failed: boolean) {
+    const pages: { rowIndex: number; valid: boolean }[][] = [];
+    let cursor: string | undefined;
+    do {
+      const result = await rowsHandler(buildGetRowsEvent(jobId, failed, cursor));
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body);
+      pages.push(body.rows);
+      cursor = body.nextCursor ?? undefined;
+    } while (cursor);
+    return pages;
+  }
+
+  it('paginates all rows in rowIndex order with nextCursor', async () => {
+    const lines = Array.from({ length: 120 }, (_, i) => `Page${i},page${i}@example.com`);
+    const jobId = await processCsv(lines, 'rows-paginate.csv');
+
+    const pages = await fetchAll(jobId, false);
+    const all = pages.flat();
+
+    expect(pages[0]).toHaveLength(50);
+    expect(all).toHaveLength(120);
+    expect(all.map((r) => r.rowIndex)).toEqual(Array.from({ length: 120 }, (_, i) => i));
+  });
+
+  it('fills failed-row pages even when failures are sparse (Limit before filter)', async () => {
+    // 200 rows, every 4th invalid -> 50 failed rows spread over the whole job.
+    // The old single query (Limit=50 + filter) only saw the first 50 rows -> 12 failed.
+    const lines = Array.from({ length: 200 }, (_, i) =>
+      i % 4 === 3 ? `Sparse${i},not-an-email` : `Sparse${i},sparse${i}@example.com`,
+    );
+    const jobId = await processCsv(lines, 'rows-sparse-failed.csv');
+
+    const pages = await fetchAll(jobId, true);
+    const all = pages.flat();
+
+    expect(pages[0]).toHaveLength(50);
+    expect(all).toHaveLength(50);
+    expect(all.every((r) => r.valid === false)).toBe(true);
+    expect(new Set(all.map((r) => r.rowIndex)).size).toBe(50);
+  });
+
+  it('returns failed rows across multiple pages without gaps or duplicates', async () => {
+    const lines = Array.from({ length: 150 }, (_, i) =>
+      i % 2 === 0 ? `Multi${i},not-an-email` : `Multi${i},multi${i}@example.com`,
+    );
+    const jobId = await processCsv(lines, 'rows-multi-failed.csv');
+
+    const pages = await fetchAll(jobId, true);
+    const all = pages.flat();
+
+    expect(pages[0]).toHaveLength(50);
+    expect(all.map((r) => r.rowIndex)).toEqual(
+      Array.from({ length: 75 }, (_, i) => i * 2),
+    );
+  });
+
+  it('rejects a malformed cursor with 400', async () => {
+    const result = await rowsHandler(buildGetRowsEvent('any-job', false, 'not-a-cursor'));
+    expect(result.statusCode).toBe(400);
+  });
+
+  it("returns 404 for another user's job rows", async () => {
+    const jobId = await processCsv(['Private,private@example.com'], 'rows-owner.csv');
+    const result = await rowsHandler(buildGetRowsEvent(jobId, false, undefined, 'intruder-user'));
+    expect(result.statusCode).toBe(404);
+  });
+
+  it('returns 401 without auth claims', async () => {
+    const result = await rowsHandler(buildGetRowsEvent('any-job', false, undefined, null));
+    expect(result.statusCode).toBe(401);
   });
 });

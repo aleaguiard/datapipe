@@ -85,20 +85,12 @@ export default async function globalSetup() {
 
   await resetTable('datapipe-rows', {
     AttributeDefinitions: [
-      { AttributeName: 'pk', AttributeType: 'S' },
       { AttributeName: 'jobId', AttributeType: 'S' },
       { AttributeName: 'rowIndex', AttributeType: 'N' },
     ],
-    KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
-    GlobalSecondaryIndexes: [
-      {
-        IndexName: 'jobId-index',
-        KeySchema: [
-          { AttributeName: 'jobId', KeyType: 'HASH' },
-          { AttributeName: 'rowIndex', KeyType: 'RANGE' },
-        ],
-        Projection: { ProjectionType: 'ALL' },
-      },
+    KeySchema: [
+      { AttributeName: 'jobId', KeyType: 'HASH' },
+      { AttributeName: 'rowIndex', KeyType: 'RANGE' },
     ],
   });
 
